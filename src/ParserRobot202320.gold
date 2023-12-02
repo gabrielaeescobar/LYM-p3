@@ -1,0 +1,221 @@
+using gold.**
+
+toSet(C) :=  {x|  x in C}
+
+///====   mini Parser===
+
+function createParser(A):IPushdownAutomaton begin
+	Q:= (0‥50)
+	
+	Σ:= toSet(A)  ∪ {' ', '\n'}
+	
+	Γ:={'$','0','1','2','3','4','5','6','7','8','9','-', '^'}
+	//^ para el repeat
+	q₀:=0
+	F:= {40}
+	M:=GPushdownAutomaton(Q,Σ,Γ,q₀,F)
+SkipChars := {' ', 't', '\n'}   // this will only  be used when testing only the parser as the lexer removes  SkipChars
+
+//begin
+M.delta(0,45,λ).push("$")
+M.delta(45,1,"{").push("0")
+//M.delta(45,46,"V").push("0")
+
+
+//--------------------------------------------------------START OF SIMPLE COMMANDS-------------------------
+//commands with (VALUE) as a single parameter
+M.delta(1,2,'w').push("1") 
+M.delta(1,2,'l').push("1") 
+M.delta(1,2,'d').push("1") 
+M.delta(1,2,'g').push("1") 
+M.delta(1,2,'G').push("1") 
+M.delta(1,2,'s').push("1")
+
+M.delta(2,4,'(').ignore()
+
+	// this process is used in other processes----
+	M.delta(4,5,'#').ignore() 
+	M.delta(4,5,'i').ignore() 
+	//-------------------------------------
+
+M.delta(5,8,')').pop("1")
+
+//commands with (VALUE, DIRECTION) or (VALUE, ORIENTATION) as parameters
+M.delta(1,3,'w').push("2")
+M.delta(1,3,'l').push("2")
+
+M.delta(3,4,'(').ignore()
+
+	// this process is used in other processes----
+	M.delta(5,6,',').ignore() 	
+	//-------------------------------------
+	
+M.delta(6,7,'f').ignore() 
+M.delta(6,7,'r').ignore()
+M.delta(6,7,'L').ignore() 
+M.delta(6,7,'b').ignore() 
+M.delta(6,7,'n').ignore() 
+M.delta(6,7,'s').ignore()
+M.delta(6,7,'w').ignore() 
+M.delta(6,7,'e').ignore() 
+
+M.delta(7,8,')').pop("2")
+
+//command of assignment
+M.delta(1,9,'i').push("3")
+M.delta(9,10,'=').ignore()
+M.delta(10,4,λ).ignore()
+M.delta(5,8,λ).pop("3")
+
+//command of jump
+M.delta(1,11,'j').push("4")
+M.delta(11,2,λ).ignore()
+M.delta(6,12,'#').ignore()
+M.delta(6,12,'i').ignore()
+M.delta(12,8,')').pop("4")
+
+//command of turn
+M.delta(1,13,'t').push("5")
+M.delta(13,14,'(').ignore()
+
+M.delta(14,15,'L').ignore()
+M.delta(14,15,'r').ignore()
+M.delta(14,15,'a').ignore()
+
+M.delta(15,8,')').pop("5")
+
+//command of turnto
+M.delta(1,16,'T').push("6")
+M.delta(16,17,'(').ignore()
+
+M.delta(17,18,'n').ignore() 
+M.delta(17,18,'s').ignore()
+M.delta(17,18,'w').ignore() 
+M.delta(17,18,'e').ignore() 
+
+M.delta(18,8,')').pop("6")
+
+//command of nop
+M.delta(1,19,'N').ignore()
+M.delta(19,20,'(').ignore()
+M.delta(20,8,')').ignore()
+//--------------------------------------------------------END OF SIMPLE COMMANDS-------------------------
+
+//--------------------------------------------------------START OF DEFINITIONS-------------------------
+// definition of variables -> defVar name v
+M.delta(45,46,'V').ignore() // defVar
+
+M.delta(46,22,'i').ignore() // defVar name
+M.delta(22,23,'i').ignore() // defVar name i
+M.delta(22,23,'#').ignore() // defVar name #
+
+M.delta(23,40,λ).pop("$")
+M.delta(23,45,λ).ignore()
+//----- en caso de que defVar sea la ultima
+
+
+//definition of procedures -> defProc name (parameter, parameter, parameter) {bloqueCommands}
+M.delta(45,46,'P').ignore() // defProc
+
+M.delta(46,25,'i').ignore() // defProc name
+M.delta(25,26,'(').push("0") // defProc name ( -> push de 0
+	//with parameters----------------------------------------------------------------------
+	M.delta(26,27,'i').ignore() // 
+	M.delta(27,26,',').ignore() // itera por si hay mas parametros
+	
+	M.delta(27,28,')').pop("0") // cuando es el ultimo parametro, no hay " , " y le hace pop de 0
+	M.delta(28,1,'{').push("0") // defProc name ( param‥. ) { -> push de 0
+	//------------------------------------------------------------------------------------
+	
+	//without parameters--------------------------------------------------------------------
+	M.delta(26,28,')').pop("0")
+	//------------------------------------------------------------------------------------
+
+	//-- connections to state '8'
+	M.delta(8,30,'}').pop("0")  // cuando ya sea el ultimo elemento del bloque de comandos
+	M.delta(30,1,λ).pop("0")
+	M.delta(30,40,λ).pop("$")
+	
+	M.delta(8,29,';').pop("0") //cuando hayan mas elementos en el bloque de comandos
+	M.delta(29,1,λ).push("0")
+//--------------------------------------------------------END OF DEFINITIONS-------------------------
+
+//--------------------------------------------------------START OF CONTROL STRUCTURES-------------------------
+//conditional -> if condition Block1 else Block2
+M.delta(1,31,'I').push("1")
+	// this process is used in other processes----CONDITIONS
+	M.delta(31,16,'F').push("2")
+	M.delta(18,33,')').pop("2")
+	
+	M.delta(31,36,'c').push("7")
+	M.delta(36,1,'(').ignore()	
+	M.delta(8,33,')').pop("7")
+	
+	M.delta(31,32,'z').ignore()
+	M.delta(32,31,':').ignore()
+	M.delta(32,33,λ).ignore()
+	//-------------------------------------
+M.delta(33,34,λ).push("1")
+M.delta(34,1,'{').push("0")
+M.delta(8,30,'}').pop("0")
+M.delta(30,34,'E').pop("1")
+M.delta(30,35,λ).pop("1")
+
+M.delta(35,8,λ).ignore()
+//M.delta(35,1,λ).ignore()
+M.delta(35,40,λ).pop("$")
+
+
+//Loop -> while condition Block
+M.delta(1,31,'W').push("8")
+M.delta(33,34,λ).pop("8")
+
+M.delta(30,8,λ).ignore()
+M.delta(30,40,λ).pop("$")
+	
+//Repeat Times -> repeat v times Block
+M.delta(1,37,'R').ignore()
+M.delta(37,38,'i').ignore()
+M.delta(37,38,'#').ignore()
+M.delta(38,28,'x').ignore()
+
+M.delta(28,1,'{').push("^")
+M.delta(8,43,'}').pop("^")
+M.delta(43,8,λ).ignore()
+M.delta(43,40,λ).pop("$")
+
+
+//procedure call 
+
+M.delta(1,41,'i').push("9")
+
+M.delta(41,26,'(').push("-") //  name ( -> push de '-'
+M.delta(26,42,'i').ignore() // puede llamarse a un procedimiento con variables
+M.delta(26,42,'#').ignore() //  puede llamarse a un procedimiento con numeros
+M.delta(42,26,',').ignore() // itera por si hay mas parametros
+
+M.delta(42,28,')').pop("-") // cuando es el ultimo parametro, no hay " , " y le hace pop de '-'
+
+M.delta(28,8,λ).pop("9")
+
+//--------------------------------------------------------END OF CONTROL STRUCTURES-------------------------
+
+
+//allows iteration through commands
+M.delta(30,45,λ).ignore()
+
+
+//end
+M.delta(8,40,λ).pop("$")
+
+
+
+ for each q in Q do
+ 	for each s in SkipChars do
+ 	   M.delta(q,q,λ+s).ignore()
+ end
+ end
+
+
+return M
+end
